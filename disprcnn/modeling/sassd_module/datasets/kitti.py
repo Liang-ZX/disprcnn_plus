@@ -52,11 +52,11 @@ class KittiLiDAR(Dataset):
         self.with_label = with_label
         self.with_mask = with_mask
         self.with_point = with_point
-        self.img_prefix = osp.join(root, 'image_2')
-        self.right_prefix = osp.join(root, 'image_3')
-        self.lidar_prefix = osp.join(root, 'velodyne_reduced')
-        self.calib_prefix = osp.join(root, 'calib')
-        self.label_prefix = osp.join(root, 'label_2')
+        # self.img_prefix = osp.join(root, 'image_2')
+        # self.right_prefix = osp.join(root, 'image_3')
+        # self.lidar_prefix = osp.join(root, 'velodyne_reduced')
+        # self.calib_prefix = osp.join(root, 'calib')
+        # self.label_prefix = osp.join(root, 'label_2')
 
         with open(ann_file, 'r') as f:
             self.sample_ids = list(map(int, f.read().splitlines()))

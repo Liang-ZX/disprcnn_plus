@@ -11,7 +11,9 @@ from disprcnn.structures.bounding_box import BoxList
 from disprcnn.structures.disparity import DisparityMap
 from disprcnn.structures.image_list import ImageList
 from disprcnn.utils.stereo_utils import EndPointErrorLoss, expand_box_to_integer
+from disprcnn.modeling.sassd_module.datasets import utils
 
+import os
 import mmcv
 # from mmcv.runner import load_checkpoint, parallel_test
 from mmcv.parallel import scatter, collate, MMDataParallel
@@ -23,7 +25,6 @@ import tools.kitti_common as kitti
 import numpy as np
 import torch.utils.data
 from tools.train_utils import load_params_from_file
-# from disprcnn.modeling.sassd_module.datasets import utils
 
 class DispRCNN3D(nn.Module):
     def __init__(self, cfg):
@@ -59,6 +60,7 @@ class DispRCNN3D(nn.Module):
             self.sassd = build_detector(car_cfg.model, train_cfg=None, test_cfg=car_cfg.test_cfg)
             load_params_from_file(self.sassd, cfg.MODEL.SASSD.TRAINED_MODEL)
             self.sassd = MMDataParallel(self.sassd, device_ids=[0])
+            self.sassd_dataset = utils.get_dataset(car_cfg.data.val)
 
     def crop_and_transform_roi_img(self, im, rois_for_image_crop):
         rois_for_image_crop = torch.as_tensor(rois_for_image_crop, dtype=torch.float32, device=im.device)
@@ -301,8 +303,9 @@ class DispRCNN3D(nn.Module):
             left_result, right_result, _ = self.pcnet(left_result, right_result, left_targets)
         if self.cfg.MODEL.SASSD_ON:
             class_names = self.car_cfg.data.val.class_names
-            outputs = self.single_test(self.sassd, left_result, self.cfg.OUTPUT_DIR, class_names)
-        result = {'left': left_result, 'right': right_result}
+            data = prepare_sassd_data(left_images, right_images, left_result, right_result, left_targets)
+            output = self.single_test(self.sassd, data, self.cfg.OUTPUT_DIR, class_names)
+        result = {'left': left_result, 'right': right_result, 'output': output}
         return result
 
     def remove_illegal_detections(self, left_result: List[BoxList], right_result: List[BoxList]):
@@ -344,83 +347,77 @@ class DispRCNN3D(nn.Module):
             sd = {k[7:]: v for k, v in ckpt.items() if k.startswith('module.')}
             self.pcnet.load_state_dict(sd)
 
-    def single_test(model, data_loader, saveto=None, class_names=['Car']):
+    def single_test(model, data, saveto=None, class_names=['Car']):
         template = '{} ' + ' '.join(['{:.4f}' for _ in range(15)]) + '\n'
         if saveto is not None:
             mmcv.mkdir_or_exist(saveto)
 
         model.eval()
         annos = []
-        prog_bar = mmcv.ProgressBar(len(data_loader.dataset))
 
-        for i, data in enumerate(data_loader):
-            with torch.no_grad():
-                results = model(return_loss=False, **data)
-            image_shape = (375, 1242)
-            for re in results:
-                img_idx = re['image_idx']
-                if re['bbox'] is not None:
-                    box2d = re['bbox']
-                    box3d = re['box3d_camera']
-                    labels = re['label_preds']
-                    scores = re['scores']
-                    alphas = re['alphas']
-                    anno = kitti.get_start_result_anno()
-                    num_example = 0
-                    for bbox2d, bbox3d, label, score, alpha in zip(box2d, box3d, labels, scores, alphas):
-                        if bbox2d[0] > image_shape[1] or bbox2d[1] > image_shape[0]:
-                            continue
-                        if bbox2d[2] < 0 or bbox2d[3] < 0:
-                            continue
-                        bbox2d[2:] = np.minimum(bbox2d[2:], image_shape[::-1])
-                        bbox2d[:2] = np.maximum(bbox2d[:2], [0, 0])
-                        anno["name"].append(class_names[int(label)])
-                        anno["truncated"].append(0.0)
-                        anno["occluded"].append(0)
-                        # anno["alpha"].append(-10)
-                        anno["alpha"].append(alpha)
-                        anno["bbox"].append(bbox2d)
-                        # anno["dimensions"].append(np.array([-1,-1,-1]))
-                        anno["dimensions"].append(bbox3d[[3, 4, 5]])
-                        # anno["location"].append(np.array([-1000,-1000,-1000]))
-                        anno["location"].append(bbox3d[:3])
-                        # anno["rotation_y"].append(-10)
-                        anno["rotation_y"].append(bbox3d[6])
-                        anno["score"].append(score)
-                        num_example += 1
-                    if num_example != 0:
-                        if saveto is not None:
-                            of_path = os.path.join(saveto, '%06d.txt' % img_idx)
-                            with open(of_path, 'w+') as f:
-                                for name, bbox, dim, loc, ry, score, alpha in zip(anno['name'], anno["bbox"], \
-                                                                                  anno["dimensions"], anno["location"],
-                                                                                  anno["rotation_y"], anno["score"],
-                                                                                  anno["alpha"]):
-                                    line = template.format(name, 0, 0, alpha, *bbox, *dim[[1, 2, 0]], *loc, ry, score)
-                                    f.write(line)
+        with torch.no_grad():
+            results = model(return_loss=False, **data)
+        image_shape = (600, 1987)
+        for re in results:
+            img_idx = re['image_idx']
+            if re['bbox'] is not None:
+                box2d = re['bbox']
+                box3d = re['box3d_camera']
+                labels = re['label_preds']
+                scores = re['scores']
+                alphas = re['alphas']
+                anno = kitti.get_start_result_anno()
+                num_example = 0
+                for bbox2d, bbox3d, label, score, alpha in zip(box2d, box3d, labels, scores, alphas):
+                    if bbox2d[0] > image_shape[1] or bbox2d[1] > image_shape[0]:
+                        continue
+                    if bbox2d[2] < 0 or bbox2d[3] < 0:
+                        continue
+                    bbox2d[2:] = np.minimum(bbox2d[2:], image_shape[::-1])
+                    bbox2d[:2] = np.maximum(bbox2d[:2], [0, 0])
+                    anno["name"].append(class_names[int(label)])
+                    anno["truncated"].append(0.0)
+                    anno["occluded"].append(0)
+                    # anno["alpha"].append(-10)
+                    anno["alpha"].append(alpha)
+                    anno["bbox"].append(bbox2d)
+                    # anno["dimensions"].append(np.array([-1,-1,-1]))
+                    anno["dimensions"].append(bbox3d[[3, 4, 5]])
+                    # anno["location"].append(np.array([-1000,-1000,-1000]))
+                    anno["location"].append(bbox3d[:3])
+                    # anno["rotation_y"].append(-10)
+                    anno["rotation_y"].append(bbox3d[6])
+                    anno["score"].append(score)
+                    num_example += 1
+                if num_example != 0:
+                    if saveto is not None:
+                        of_path = os.path.join(saveto, '%06d.txt' % img_idx)
+                        with open(of_path, 'w+') as f:
+                            for name, bbox, dim, loc, ry, score, alpha in zip(anno['name'], anno["bbox"], \
+                                                                              anno["dimensions"], anno["location"],
+                                                                              anno["rotation_y"], anno["score"],
+                                                                              anno["alpha"]):
+                                line = template.format(name, 0, 0, alpha, *bbox, *dim[[1, 2, 0]], *loc, ry, score)
+                                f.write(line)
 
-                        anno = {n: np.stack(v) for n, v in anno.items()}
-                        annos.append(anno)
-                    else:
-                        if saveto is not None:
-                            of_path = os.path.join(saveto, '%06d.txt' % img_idx)
-                            f = open(of_path, 'w+')
-                            f.close()
-                        annos.append(kitti.empty_result_anno())
+                    anno = {n: np.stack(v) for n, v in anno.items()}
+                    annos.append(anno)
                 else:
                     if saveto is not None:
                         of_path = os.path.join(saveto, '%06d.txt' % img_idx)
                         f = open(of_path, 'w+')
                         f.close()
                     annos.append(kitti.empty_result_anno())
+            else:
+                if saveto is not None:
+                    of_path = os.path.join(saveto, '%06d.txt' % img_idx)
+                    f = open(of_path, 'w+')
+                    f.close()
+                annos.append(kitti.empty_result_anno())
 
-                num_example = annos[-1]["name"].shape[0]
-                annos[-1]["image_idx"] = np.array(
-                    [img_idx] * num_example, dtype=np.int64)
-
-            batch_size = len(results)
-            for _ in range(batch_size):
-                prog_bar.update()
+            num_example = annos[-1]["name"].shape[0]
+            annos[-1]["image_idx"] = np.array(
+                [img_idx] * num_example, dtype=np.int64)
 
         return annos
 

@@ -1,0 +1,15 @@
+scipy
+tqdm
+fastai
+termcolor
+matplotlib
+numpy
+yacs
+numba
+Pillow<7
+PyYAML
+tensorboardX
+tensorboard
+zarr
+opencv-python
+pathlib2

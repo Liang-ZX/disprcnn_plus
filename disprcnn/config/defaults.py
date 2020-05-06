@@ -29,6 +29,7 @@ _C.MODEL.SHAPE_ON = False
 _C.MODEL.RETINANET_ON = False
 _C.MODEL.STEREO_ON = False
 _C.MODEL.DET3D_ON = False
+_C.MODEL.SASSD_ON = False
 _C.MODEL.DEVICE = "cuda"
 _C.MODEL.META_ARCHITECTURE = "GeneralizedRCNN"
 _C.MODEL.CLS_AGNOSTIC_BBOX_REG = False
@@ -622,3 +623,8 @@ _C.TEST.FORCE_RECOMPUTE = True
 _C.OUTPUT_DIR = "."
 
 _C.PATHS_CATALOG = os.path.join(os.path.dirname(__file__), "paths_catalog.py")
+
+##################################################################################
+_C.MODEL.SASSD = CN()
+_C.MODEL.SASSD.CAR_CFG = "disprcnn/config/car_cfg.py"
+_C.MODEL.SASSD.TRAINED_MODEL = "models/kitti/vob/sassd/epoch_50.pth"

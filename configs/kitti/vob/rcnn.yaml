@@ -23,6 +23,7 @@ MODEL:
   MASK_ON: True
   STEREO_ON: True
   DET3D_ON: True
+  SASSD_ON: False
   DISPNET_ON: False
 DATASETS:
   TRAIN: ("kitti_train_vob", )

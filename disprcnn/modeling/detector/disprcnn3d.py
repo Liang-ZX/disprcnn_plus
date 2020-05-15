@@ -12,6 +12,7 @@ from disprcnn.structures.disparity import DisparityMap
 from disprcnn.structures.image_list import ImageList
 from disprcnn.utils.stereo_utils import EndPointErrorLoss, expand_box_to_integer
 from disprcnn.modeling.sassd_module.datasets import utils
+from disprcnn.modeling.sassd_module.datasets.kitti_utils import Sassd_object
 
 import os
 import mmcv
@@ -303,9 +304,17 @@ class DispRCNN3D(nn.Module):
             left_result, right_result, _ = self.pcnet(left_result, right_result, left_targets)
         if self.cfg.MODEL.SASSD_ON:
             class_names = self.car_cfg.data.val.class_names
-            data = prepare_sassd_data(left_images, right_images, left_result, right_result, left_targets)
-            output = self.single_test(self.sassd, data, self.cfg.OUTPUT_DIR, class_names)
-        result = {'left': left_result, 'right': right_result, 'output': output}
+            for i, left_target in enumerate(left_targets):
+                sassd_calib = left_target.get_field('sassd_calib')
+                sassd_objects = left_target.get_field('sassd_objects')
+                sassd_objects = sassd_objects.get_object()
+                img = left_images[i]
+                img_id = left_target.get_field('imgid')
+            # data = self.sassd_dataset.__getitem__()
+            # data = prepare_sassd_data(left_images, right_images, left_result, right_result, left_targets)
+            # output = self.single_test(self.sassd, data, self.cfg.OUTPUT_DIR, class_names)
+        # result = {'left': left_result, 'right': right_result, 'output': output}
+        result = {'left': left_result, 'right': right_result}
         return result
 
     def remove_illegal_detections(self, left_result: List[BoxList], right_result: List[BoxList]):

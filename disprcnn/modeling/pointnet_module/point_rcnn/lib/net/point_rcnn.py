@@ -233,7 +233,7 @@ class PointRCNN(nn.Module):
             fus = torch.tensor(fus).cuda()
             self.rotator = rotate_pc_along_y(left_inputs, fus)
             pts = self.back_project(depth_maps, mask_pred_list, targets=targets, fix_seed=True)
-            pts = self.rotator.__call__(pts.permute(0, 2, 1)).permute(0, 2, 1)
+            pts = self.rotator.__call__(pts.permute(0, 2, 1)).permute(0, 2, 1) # Transformation of view cone of point cloud
             pts_mean = pts.mean(1)
             self.pts_mean = pts_mean
             pts = pts - pts_mean[:, None, :]

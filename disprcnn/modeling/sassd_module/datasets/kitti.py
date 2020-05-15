@@ -57,9 +57,9 @@ class KittiLiDAR(Dataset):
         # self.lidar_prefix = osp.join(root, 'velodyne_reduced')
         # self.calib_prefix = osp.join(root, 'calib')
         # self.label_prefix = osp.join(root, 'label_2')
-
-        with open(ann_file, 'r') as f:
-            self.sample_ids = list(map(int, f.read().splitlines()))
+        #
+        # with open(ann_file, 'r') as f:
+        #     self.sample_ids = list(map(int, f.read().splitlines()))
 
         if not self.test_mode:
             self._set_group_flag()
@@ -98,29 +98,24 @@ class KittiLiDAR(Dataset):
     def __len__(self):
         return len(self.sample_ids)
 
-    def _rand_another(self, idx):
-        pool = np.where(self.flag == self.flag[idx])[0]
-        return np.random.choice(pool)
-
-    def __getitem__(self, idx):
+    def __getitem__(self, img, imgid, calib, objects=None, points=None):
         if self.test_mode:
-            return self.prepare_test_img(idx)
-        while True:
-            data = self.prepare_train_img(idx)
-            if data is None:
-                idx = self._rand_another(idx)
-                continue
+            return self.prepare_test_img(img, imgid, calib, objects, points)
+        else:
+            data = self.prepare_train_img(img, imgid, calib, objects, points)
             return data
 
-    def prepare_train_img(self, idx):
-        sample_id = self.sample_ids[idx]
-
-        # load image
-        img = mmcv.imread(osp.join(self.img_prefix, '%06d.png' % sample_id))
-        img = mmcv.imresize(img, (1987, 600))
-        img, img_shape, pad_shape, scale_factor = self.img_transform(img, 1, False)
-        objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))
-        calib = Calibration(osp.join(self.calib_prefix, '%06d.txt' % sample_id))
+    def prepare_train_img(self, img, sample_id, calib, objects=None, project_points=None):
+        # sample_id = self.sample_ids[idx]
+        #
+        # # load image
+        # img = mmcv.imread(osp.join(self.img_prefix, '%06d.png' % sample_id))
+        # img = mmcv.imresize(img, (1987, 600))
+        # img, img_shape, pad_shape, scale_factor = self.img_transform(img, 1, False)
+        img_shape = img.image_sizes
+        img = img.tensors
+        # objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))
+        # calib = Calibration(osp.join(self.calib_prefix, '%06d.txt' % sample_id))
 
         gt_bboxes = [object.box3d for object in objects if object.type not in ["DontCare"]]
         gt_bboxes = np.array(gt_bboxes, dtype=np.float32)
@@ -149,7 +144,8 @@ class KittiLiDAR(Dataset):
             NotImplemented
 
         if self.with_point:
-            points = read_lidar(osp.join(self.lidar_prefix, '%06d.bin' % sample_id))
+            # points = read_lidar(osp.join(self.lidar_prefix, '%06d.bin' % sample_id))
+            points = project_points
 
         if self.augmentor is not None and self.test_mode is False:
             sampled_gt_boxes, sampled_gt_types, sampled_points = self.augmentor.sample_all(gt_bboxes, gt_types)
@@ -231,20 +227,22 @@ class KittiLiDAR(Dataset):
 
         return data
 
-    def prepare_test_img(self, idx):
+    def prepare_test_img(self, img, sample_id, calib, objects=None, project_points=None):
         """Prepare an image for testing (multi-scale and flipping)"""
-        sample_id = self.sample_ids[idx]
+        # sample_id = self.sample_ids[idx]
+        #
+        # # load image
+        # img = mmcv.imread(osp.join(self.img_prefix, '%06d.png' % sample_id))
+        # img = mmcv.imresize(img, (1987, 600))
+        # img, img_shape, pad_shape, scale_factor = self.img_transform(
+        #     img, 1, False)
+        img_shape = img.image_sizes
+        img = img.tensors
 
-        # load image
-        img = mmcv.imread(osp.join(self.img_prefix, '%06d.png' % sample_id))
-        img = mmcv.imresize(img, (1987, 600))
-        img, img_shape, pad_shape, scale_factor = self.img_transform(
-            img, 1, False)
-
-        calib = Calibration(osp.join(self.calib_prefix, '%06d.txt' % sample_id))
+        # calib = Calibration(osp.join(self.calib_prefix, '%06d.txt' % sample_id))
 
         if self.with_label:
-            objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))
+            # objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))
             gt_bboxes = [object.box3d for object in objects if object.type in self.class_name]
 
             if len(gt_bboxes) != 0:
@@ -274,7 +272,8 @@ class KittiLiDAR(Dataset):
             NotImplemented
 
         if self.with_point:
-            points = read_lidar(osp.join(self.lidar_prefix, '%06d.bin' % sample_id))
+            # points = read_lidar(osp.join(self.lidar_prefix, '%06d.bin' % sample_id))
+            points = project_points
 
 
         if isinstance(self.generator, VoxelGenerator):

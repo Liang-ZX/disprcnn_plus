@@ -14,6 +14,7 @@ from disprcnn.structures.disparity import DisparityMap
 from disprcnn.structures.segmentation_mask import SegmentationMask
 from disprcnn.utils.kitti_utils import load_calib, load_image_2, load_label_2, load_label_3
 from disprcnn.utils.stereo_utils import align_left_right_targets
+from disprcnn.modeling.sassd_module.datasets.kitti_utils import Calibration, Sassd_object
 
 
 class KITTIObjectDataset(torch.utils.data.Dataset):
@@ -112,6 +113,8 @@ class KITTIObjectDataset(torch.utils.data.Dataset):
             left_target.add_field('image_size', torch.tensor([[width, height]]).repeat(len(left_target), 1))
             left_target.add_field('masks', self.get_mask(index))
             left_target.add_field('calib', Calib(self.get_calibration(index), (width, height)))
+            left_target.add_field('sassd_calib', self.get_sassd_calib(index))
+            left_target.add_field('sassd_objects', self.read_sassd_object(index))
             left_target.add_field('index', torch.full((len(left_target), 1), index, dtype=torch.long))
             left_target.add_field('imgid', torch.full((len(left_target), 1), int(img_id), dtype=torch.long))
             left_target = left_target.clip_to_image(remove_empty=True)
@@ -150,6 +153,17 @@ class KITTIObjectDataset(torch.utils.data.Dataset):
 
     def map_class_id_to_class_name(self, class_id):
         return KITTIObjectDataset.CLASSES[class_id]
+
+    def read_sassd_object(self, index):
+        if self.split == 'test':
+            split = 'testing'
+            return None
+        else:
+            imgid = self.ids[index]
+            split = 'training'
+            calib_dir = os.path.join(self.root, 'object', split, 'label_2')
+            absolute_path = os.path.join(calib_dir, imgid + '.txt')
+            return Sassd_object(absolute_path)
 
     def read_annotations(self):
         double_view_annotations = {}
@@ -296,6 +310,13 @@ class KITTIObjectDataset(torch.utils.data.Dataset):
         split = 'training' if self.split != 'test' else 'testing'
         calib = load_calib(self.root, split, imgid)
         return calib
+
+    def get_sassd_calib(self, index):
+        imgid = self.ids[index]
+        split = 'training' if self.split != 'test' else 'testing'
+        calib_dir = os.path.join(self.root, 'object', split, 'calib')
+        absolute_path = os.path.join(calib_dir, imgid+'.txt')
+        return Calibration(absolute_path)
 
     def remove_ignore_cars(self, l, r):
         if len(l) == 0 and len(r) == 0:

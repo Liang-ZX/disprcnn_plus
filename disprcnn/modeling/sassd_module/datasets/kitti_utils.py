@@ -106,6 +106,9 @@ class Calibration(object):
         self.b_x = self.P2[0, 3] / (-self.f_u)  # relative
         self.b_y = self.P2[1, 3] / (-self.f_v)
 
+    def __getitem__(self, item):
+        return self
+
     def read_calib_file(self, filepath):
         ''' Read in a calibration file and parse into a dictionary.
         Ref: https://github.com/utiasSTARS/pykitti/blob/master/pykitti/utils.py
@@ -140,6 +143,17 @@ class Calibration(object):
         data['P2'] = cam2cam['P_rect_02']
         data['P3'] = cam2cam['P_rect_03']
         return data
+
+class Sassd_object(object):
+    def __init__(self, label_filename):
+        lines = [line.rstrip() for line in open(label_filename)]
+        self.objects = [Object3d(line) for line in lines]
+
+    def __getitem__(self, item):
+        return self
+
+    def get_object(self):
+        return self.objects
 
 def read_lidar(bin_path):
     """Load PointCloud data from pcd file."""

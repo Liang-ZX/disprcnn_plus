@@ -13,6 +13,7 @@ from disprcnn.structures.image_list import ImageList
 from disprcnn.utils.stereo_utils import EndPointErrorLoss, expand_box_to_integer
 from disprcnn.modeling.sassd_module.datasets import utils
 from disprcnn.modeling.sassd_module.datasets.kitti_utils import Sassd_object
+from disprcnn.modeling.sassd_module.sassd_preprocess import SassdPreprocess
 
 import os
 import mmcv
@@ -57,11 +58,16 @@ class DispRCNN3D(nn.Module):
         if cfg.MODEL.SASSD_ON:
             car_cfg = mmcv.Config.fromfile(cfg.MODEL.SASSD.CAR_CFG)
             car_cfg.model.pretrained = None
+            self.sassd_preprocess = SassdPreprocess(cfg, car_cfg.training)
             self.car_cfg = car_cfg
-            self.sassd = build_detector(car_cfg.model, train_cfg=None, test_cfg=car_cfg.test_cfg)
-            load_params_from_file(self.sassd, cfg.MODEL.SASSD.TRAINED_MODEL)
-            self.sassd = MMDataParallel(self.sassd, device_ids=[0])
-            self.sassd_dataset = utils.get_dataset(car_cfg.data.val)
+            if car_cfg.training:
+                self.sassd = build_detector(car_cfg.model, train_cfg=car_cfg.train_cfg, test_cfg=None)
+                # TODO
+            else:
+                self.sassd = build_detector(car_cfg.model, train_cfg=None, test_cfg=car_cfg.test_cfg)
+                load_params_from_file(self.sassd, cfg.MODEL.SASSD.TRAINED_MODEL)
+                self.sassd = MMDataParallel(self.sassd, device_ids=[0])
+                self.sassd_dataset = utils.get_dataset(car_cfg.data.val)
 
     def crop_and_transform_roi_img(self, im, rois_for_image_crop):
         rois_for_image_crop = torch.as_tensor(rois_for_image_crop, dtype=torch.float32, device=im.device)
@@ -304,18 +310,19 @@ class DispRCNN3D(nn.Module):
             left_result, right_result, _ = self.pcnet(left_result, right_result, left_targets)
         if self.cfg.MODEL.SASSD_ON:
             class_names = self.car_cfg.data.val.class_names
+            points = self.sassd_preprocess.forward(left_result, right_result, left_targets)
             for i, left_target in enumerate(left_targets):
                 sassd_calib = left_target.get_field('sassd_calib')
                 sassd_objects = left_target.get_field('sassd_objects')
                 sassd_objects = sassd_objects.get_object()
                 img = left_images[i]
                 img_id = left_target.get_field('imgid')
-            # data = self.sassd_dataset.__getitem__()
-            # data = prepare_sassd_data(left_images, right_images, left_result, right_result, left_targets)
+                # data = self.sassd_dataset.sassd_getitem()
             # output = self.single_test(self.sassd, data, self.cfg.OUTPUT_DIR, class_names)
         # result = {'left': left_result, 'right': right_result, 'output': output}
         result = {'left': left_result, 'right': right_result}
-        return result
+        # return result
+        return points
 
     def remove_illegal_detections(self, left_result: List[BoxList], right_result: List[BoxList]):
         lrs, rrs = [], []

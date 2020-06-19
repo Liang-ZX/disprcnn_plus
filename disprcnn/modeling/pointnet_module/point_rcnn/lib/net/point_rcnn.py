@@ -14,6 +14,8 @@ from disprcnn.utils.utils_3d import rotate_pc_along_y
 from .rcnn_net import RCNNNet
 from .rpn import RPN
 
+import imageio
+
 
 class PointRCNN(nn.Module):
     def __init__(self, cfg):
@@ -219,6 +221,7 @@ class PointRCNN(nn.Module):
                     depth_map_per_roi[y1:y2, x1:x2] = depth_roi.clamp(min=1.0)
                     disparity_map_per_roi[y1:y2, x1:x2] = disp_roi
                     disparity_map_per_roi = disparity_map_per_roi * mask.float().cuda()
+                    # imageio.imsave('~/code/disprcnn_plus/tmp.jpg', depth_map_per_roi.cpu().numpy())
                     depth_maps_per_img.append(depth_map_per_roi)
                     disparity_maps_per_img.append(disparity_map_per_roi)
                 if len(depth_maps_per_img) != 0:
@@ -234,6 +237,10 @@ class PointRCNN(nn.Module):
             self.rotator = rotate_pc_along_y(left_inputs, fus)
             pts = self.back_project(depth_maps, mask_pred_list, targets=targets, fix_seed=True)
             pts = self.rotator.__call__(pts.permute(0, 2, 1)).permute(0, 2, 1) # Transformation of view cone of point cloud
+            # pts_tmp = pts.cpu().numpy()
+            # with open('/home/liangzx/code/disprcnn_plus/tmp2.obj', 'w+') as f:
+            #     for i in range(pts_tmp.shape[1]):
+            #             f.write("v" + " " + str(pts_tmp[0,i,0]) + " " + str(pts_tmp[0,i,1]) + " " + str(pts_tmp[0,i,2]) + "\n")
             pts_mean = pts.mean(1)
             self.pts_mean = pts_mean
             pts = pts - pts_mean[:, None, :]

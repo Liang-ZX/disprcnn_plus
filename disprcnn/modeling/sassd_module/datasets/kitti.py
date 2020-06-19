@@ -52,11 +52,6 @@ class KittiLiDAR(Dataset):
         self.with_label = with_label
         self.with_mask = with_mask
         self.with_point = with_point
-        # self.img_prefix = osp.join(root, 'image_2')
-        # self.right_prefix = osp.join(root, 'image_3')
-        # self.lidar_prefix = osp.join(root, 'velodyne_reduced')
-        # self.calib_prefix = osp.join(root, 'calib')
-        # self.label_prefix = osp.join(root, 'label_2')
         #
         # with open(ann_file, 'r') as f:
         #     self.sample_ids = list(map(int, f.read().splitlines()))
@@ -98,7 +93,17 @@ class KittiLiDAR(Dataset):
     def __len__(self):
         return len(self.sample_ids)
 
-    def __getitem__(self, img, imgid, calib, objects=None, points=None):
+    def __getitem__(self, idx):
+        if self.test_mode:
+            return self.prepare_test_img(idx)
+        while True:
+            data = self.prepare_train_img(idx)
+            if data is None:
+                idx = self._rand_another(idx)
+                continue
+            return data
+
+    def sassd_getitem(self, img, imgid, calib, objects=None, points=None):
         if self.test_mode:
             return self.prepare_test_img(img, imgid, calib, objects, points)
         else:
@@ -106,12 +111,7 @@ class KittiLiDAR(Dataset):
             return data
 
     def prepare_train_img(self, img, sample_id, calib, objects=None, project_points=None):
-        # sample_id = self.sample_ids[idx]
-        #
-        # # load image
-        # img = mmcv.imread(osp.join(self.img_prefix, '%06d.png' % sample_id))
-        # img = mmcv.imresize(img, (1987, 600))
-        # img, img_shape, pad_shape, scale_factor = self.img_transform(img, 1, False)
+
         img_shape = img.image_sizes
         img = img.tensors
         # objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))
@@ -229,17 +229,9 @@ class KittiLiDAR(Dataset):
 
     def prepare_test_img(self, img, sample_id, calib, objects=None, project_points=None):
         """Prepare an image for testing (multi-scale and flipping)"""
-        # sample_id = self.sample_ids[idx]
-        #
-        # # load image
-        # img = mmcv.imread(osp.join(self.img_prefix, '%06d.png' % sample_id))
-        # img = mmcv.imresize(img, (1987, 600))
-        # img, img_shape, pad_shape, scale_factor = self.img_transform(
-        #     img, 1, False)
+
         img_shape = img.image_sizes
         img = img.tensors
-
-        # calib = Calibration(osp.join(self.calib_prefix, '%06d.txt' % sample_id))
 
         if self.with_label:
             # objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))

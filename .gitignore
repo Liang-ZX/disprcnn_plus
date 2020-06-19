@@ -1,5 +1,9 @@
-./data/
-./models/
+./data/*
+./models/*
+data
+models
+*.jpg
+*.obj
 
 # macOS
 .DS_Store

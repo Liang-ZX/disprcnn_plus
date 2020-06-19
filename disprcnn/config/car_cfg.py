@@ -32,7 +32,7 @@ model = dict(
         num_parts=28,
     )
 )
-
+training = False
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
@@ -146,7 +146,8 @@ data = dict(
         generator=dict(
             type='VoxelGenerator',
             voxel_size=[0.05, 0.05, 0.1],
-            point_cloud_range=[0., -40., -3., 70.4, 40., 1.],
+            # point_cloud_range=[0., -40., -3., 70.4, 40., 1.],
+            point_cloud_range=[0., -40., -0.1, 70.4, 40., 5.],
             max_num_points=5,
             max_voxels=20000
         ),
@@ -154,7 +155,7 @@ data = dict(
             type='AnchorGeneratorStride',
             sizes=[1.6, 3.9, 1.56],
             anchor_strides=[0.4, 0.4, 1.0],
-            anchor_offsets=[0.2, -39.8, -1.78],
+            anchor_offsets=[0.2, -39.8, 2.5],
             rotations=[0, 1.57],
         ),
         anchor_area_threshold=1,

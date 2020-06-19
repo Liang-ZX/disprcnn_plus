@@ -4,7 +4,7 @@ import os
 
 import torch
 from tqdm import tqdm
-
+import numpy as np
 from disprcnn.data.datasets.evaluation import evaluate
 from ..utils.comm import all_gather
 from ..utils.comm import is_main_process, get_world_size
@@ -15,6 +15,8 @@ from ..utils.timer import Timer, get_time_str
 def compute_on_dataset(model, data_loader, device, timer=None):
     model.eval()
     left_results_dict, right_results_dict = {}, {}
+    anchors_count = []
+    anchors_count_dict = {}
     cpu_device = torch.device("cpu")
     for i, batch in enumerate(tqdm(data_loader)):
         images, targets, image_ids = batch
@@ -40,12 +42,23 @@ def compute_on_dataset(model, data_loader, device, timer=None):
                 left_results_dict.update({img_id: result for img_id, result in zip(image_ids, output['left'])})
                 right_results_dict.update({img_id: result for img_id, result in zip(image_ids, output['right'])})
             else:
+                if output is None:
+                    continue
                 output = [o.to(cpu_device) for o in output]
-                left_results_dict.update(
-                    {img_id: result for img_id, result in zip(image_ids, output)}
-                )
+                # left_results_dict.update(
+                #     {img_id: result for img_id, result in zip(image_ids, output)}
+                # )
+                for o in output:
+                    anchors_count.append(o.numpy())
+                anchors_tmp = (np.array(anchors_count)).reshape(-1, 3)
+                anchors_count_dict.update({image_ids: [anchors_tmp.min(0), anchors_tmp.max(0)]})
+                if image_ids[0] >= 10:
+                    break
+    # anchors_count = (np.array(anchors_count)).reshape(-1,3)
+    # print(anchors_count.min(0), anchors_count.max(0))
     if len(right_results_dict) == 0:
-        return left_results_dict
+        # return left_results_dict
+        return anchors_count
     else:
         return left_results_dict, right_results_dict
 

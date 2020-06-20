@@ -30,12 +30,13 @@ class DoubleViewBatchCollator(BatchCollator):
         targets = {'left': [t['left'] for t in transposed_batch[1]],
                    'right': [t['right'] for t in transposed_batch[1]]}
         img_ids = transposed_batch[2]
-        if len(transposed_batch) == 5:
-            preds2d = {'left': list(transposed_batch[3]),
-                       'right': list(transposed_batch[4])}
-            return images, targets, [img_ids, preds2d]
+        img_index = transposed_batch[3]
+        if len(transposed_batch) == 6:
+            preds2d = {'left': list(transposed_batch[4]),
+                       'right': list(transposed_batch[5])}
+            return images, targets, [img_ids, preds2d], img_index
         else:
-            return images, targets, img_ids
+            return images, targets, img_ids, img_index
 
         # img_ids = {'left': [t['left'] for t in transposed_batch[2]],
         #            'right': [t['right'] for t in transposed_batch[2]]}

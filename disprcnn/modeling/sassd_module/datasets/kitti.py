@@ -52,6 +52,7 @@ class KittiLiDAR(Dataset):
         self.with_label = with_label
         self.with_mask = with_mask
         self.with_point = with_point
+        self.lidar_prefix = osp.join(root, 'velodyne_reduced')
         #
         # with open(ann_file, 'r') as f:
         #     self.sample_ids = list(map(int, f.read().splitlines()))
@@ -230,8 +231,9 @@ class KittiLiDAR(Dataset):
     def prepare_test_img(self, img, sample_id, calib, objects=None, project_points=None):
         """Prepare an image for testing (multi-scale and flipping)"""
 
-        img_shape = img.image_sizes
-        img = img.tensors
+        img = img.tensors.permute(1, 2, 0).cpu().numpy()
+        img, img_shape, pad_shape, scale_factor = self.img_transform(
+            img, 1, False)
 
         if self.with_label:
             # objects = read_label(osp.join(self.label_prefix, '%06d.txt' % sample_id))
@@ -264,8 +266,8 @@ class KittiLiDAR(Dataset):
             NotImplemented
 
         if self.with_point:
-            # points = read_lidar(osp.join(self.lidar_prefix, '%06d.bin' % sample_id))
-            points = project_points
+            points = read_lidar(osp.join(self.lidar_prefix, '%06d.bin' % sample_id))
+            points_mine = project_points
 
 
         if isinstance(self.generator, VoxelGenerator):

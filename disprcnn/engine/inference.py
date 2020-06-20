@@ -19,7 +19,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
     anchors_count_dict = {}
     cpu_device = torch.device("cpu")
     for i, batch in enumerate(tqdm(data_loader)):
-        images, targets, image_ids = batch
+        images, targets, image_ids, image_index = batch
         images = {k: v.to(device) for k, v in images.items()}
         targets['left'] = [target.to(device) for target in targets['left']]
         if len(image_ids) > 1 and isinstance(image_ids[1], dict):
@@ -31,9 +31,9 @@ def compute_on_dataset(model, data_loader, device, timer=None):
             if timer:
                 timer.tic()
             if preds_2d is None:
-                output = model(images, targets)
+                output = model(images, targets, img_ids=image_index)
             else:
-                output = model(images, preds_2d, targets)
+                output = model(images, preds_2d, targets, img_ids=image_index)
             if timer:
                 torch.cuda.synchronize()
                 timer.toc()

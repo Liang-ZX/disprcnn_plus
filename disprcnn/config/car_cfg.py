@@ -78,7 +78,7 @@ test_cfg = dict(
 )
 # dataset settings
 dataset_type = 'KittiLiDAR'
-data_root = '/home/liangzhixuan/Datasets/KITTI/object/'
+data_root = '/home/liangzx/Datasets/KITTI/object/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 data = dict(

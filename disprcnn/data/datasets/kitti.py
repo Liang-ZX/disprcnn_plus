@@ -81,9 +81,9 @@ class KITTIObjectDataset(torch.utils.data.Dataset):
             targets['right'] = r
         if self.offline_2d_predictions_dir != '':
             lp, rp = self.get_offline_prediction(index)
-            return imgs, targets, index, lp, rp
+            return imgs, targets, index, self.ids[index], lp, rp
         else:
-            return imgs, targets, index
+            return imgs, targets, index, self.ids[index]
 
     def get_image(self, index):
         img_id = self.ids[index]

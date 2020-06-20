@@ -27,6 +27,7 @@ import tools.kitti_common as kitti
 import numpy as np
 import torch.utils.data
 from tools.train_utils import load_params_from_file
+import imageio
 
 class DispRCNN3D(nn.Module):
     def __init__(self, cfg):
@@ -236,7 +237,7 @@ class DispRCNN3D(nn.Module):
 
     def _forward_train(self, left_images: ImageList, right_images: ImageList,
                        left_result: List[BoxList], right_result: List[BoxList],
-                       left_targets: List[BoxList]):
+                       left_targets: List[BoxList], img_ids):
         losses = {}
         # forward psmnet
         # 0. remove low score rois
@@ -292,7 +293,7 @@ class DispRCNN3D(nn.Module):
         return losses
 
     def _forward_eval(self, left_images: ImageList, right_images: ImageList,
-                      left_result: List[BoxList], right_result: List[BoxList], left_targets: List[BoxList]):
+                      left_result: List[BoxList], right_result: List[BoxList], left_targets: List[BoxList], img_ids):
         if self.cfg.MODEL.DISPNET_ON:
             left_roi_images, right_roi_images, calib, x1s, x1ps, x2s, x2ps = \
                 self.prepare_psmnet_input_and_target(left_images, right_images,
@@ -310,14 +311,16 @@ class DispRCNN3D(nn.Module):
             left_result, right_result, _ = self.pcnet(left_result, right_result, left_targets)
         if self.cfg.MODEL.SASSD_ON:
             class_names = self.car_cfg.data.val.class_names
-            points = self.sassd_preprocess.forward(left_result, right_result, left_targets)
+            points = self.sassd_preprocess.process_data(left_result, right_result, left_targets)
+            # pts_tmp = points.cpu().numpy()
+            # with open('/home/liangzx/code/disprcnn_plus/tmp5.obj', 'w+') as f:
             for i, left_target in enumerate(left_targets):
                 sassd_calib = left_target.get_field('sassd_calib')
                 sassd_objects = left_target.get_field('sassd_objects')
                 sassd_objects = sassd_objects.get_object()
                 img = left_images[i]
-                img_id = left_target.get_field('imgid')
-                # data = self.sassd_dataset.sassd_getitem()
+                img_id = int(img_ids[i])
+                data = self.sassd_dataset.sassd_getitem(img, img_id, sassd_calib, sassd_objects, points[i])
             # output = self.single_test(self.sassd, data, self.cfg.OUTPUT_DIR, class_names)
         # result = {'left': left_result, 'right': right_result, 'output': output}
         result = {'left': left_result, 'right': right_result}
@@ -336,7 +339,7 @@ class DispRCNN3D(nn.Module):
 
     def forward(self, lr_images: Dict[str, ImageList],
                 lr_result: Dict[str, List[BoxList]],
-                lr_targets: Dict[str, List[BoxList]] = None):
+                lr_targets: Dict[str, List[BoxList]] = None, img_ids=0):
         left_images, right_images = lr_images['left'], lr_images['right']
         left_result, right_result = lr_result['left'], lr_result['right']
         left_result, right_result = self.remove_illegal_detections(left_result, right_result)
@@ -344,9 +347,9 @@ class DispRCNN3D(nn.Module):
             assert lr_targets is not None
             left_targets, right_targets = lr_targets['left'], lr_targets['right']
             return self._forward_train(left_images, right_images,
-                                       left_result, right_result, left_targets)
+                                       left_result, right_result, left_targets, img_ids)
         else:
-            return self._forward_eval(left_images, right_images, left_result, right_result, lr_targets['left'])
+            return self._forward_eval(left_images, right_images, left_result, right_result, lr_targets['left'], img_ids)
 
     def load_state_dict(self, state_dict, strict=True):
         super(DispRCNN3D, self).load_state_dict(state_dict, strict)

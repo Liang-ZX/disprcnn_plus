@@ -217,7 +217,7 @@ class SassdPreprocess:
                     depth_map_per_roi[y1:y2, x1:x2] = depth_roi.clamp(min=1.0)
                     disparity_map_per_roi[y1:y2, x1:x2] = disp_roi
                     disparity_map_per_roi = disparity_map_per_roi * mask.float().cuda()
-                    # imageio.imsave('~/code/disprcnn_plus/tmp.jpg', depth_map_per_roi.cpu().numpy())
+                    # imageio.imsave('~/code/disprcnn_plus/tmp33.jpg', depth_map_per_roi.cpu().numpy())
                     depth_maps_per_img.append(depth_map_per_roi)
                     disparity_maps_per_img.append(disparity_map_per_roi)
                 if len(depth_maps_per_img) != 0:
@@ -233,10 +233,6 @@ class SassdPreprocess:
             self.rotator = rotate_pc_along_y(left_inputs, fus)
             pts = self.back_project(depth_maps, mask_pred_list, targets=targets, fix_seed=True)
             pts = self.rotator.__call__(pts.permute(0, 2, 1)).permute(0, 2, 1)  # Transformation of view cone of point cloud
-            # pts_tmp = pts.cpu().numpy()
-            # with open('/home/liangzx/code/disprcnn_plus/tmp2.obj', 'w+') as f:
-            #     for i in range(pts_tmp.shape[1]):
-            #             f.write("v" + " " + str(pts_tmp[0,i,0]) + " " + str(pts_tmp[0,i,1]) + " " + str(pts_tmp[0,i,2]) + "\n")
             pts_mean = pts.mean(1)
             self.pts_mean = pts_mean
             pts = pts - pts_mean[:, None, :]
@@ -295,8 +291,8 @@ class SassdPreprocess:
             pts_input = self.rotator.rotate_back(
                 (pts_input + self.pts_mean[:, None, :]).permute(0, 2, 1)
             ).permute(0, 2, 1).contiguous()
-            pts_mean = pts_input.mean(1)
-            pts_input = pts_input - pts_mean[:, None, :]
+            # pts_mean = pts_input.mean(1)
+            # pts_input = pts_input - pts_mean[:, None, :]
         return pts_input
 
     def process_data(self, left_inputs, right_inputs, targets=None):
@@ -400,29 +396,3 @@ def filter_unmatched_idxs(proposals, matched_targets):
     for k, t in zip(keep_splited, matched_targets):
         ret_targets.append(t[k])
     return ret_proposals, ret_targets
-
-
-def combine_2d_3d(left_inputs, proposals):
-    box_3ds_batch, scores = [], []
-    randoms = []
-    for proposal in proposals:
-        score = proposal.get_field('box3d_score')
-        box3d = proposal.get_field('box3d')
-        is_random = proposal.get_field('random')
-        maxidx = score.argmax()
-        box3d = box3d.bbox_3d[maxidx]
-        scores.append(score[maxidx].cpu())
-        box_3ds_batch.append(box3d.cpu())
-        randoms.append(is_random[maxidx].cpu())
-    box_3ds_batch = torch.stack(box_3ds_batch)
-    scores = torch.stack(scores)
-    randoms = torch.stack(randoms)
-    box_3ds_batch = torch.split(box_3ds_batch, [len(a) for a in left_inputs])
-    scores = torch.split(scores, [len(a) for a in left_inputs])
-    randoms = torch.split(randoms, [len(a) for a in left_inputs])
-    for left_input, box3d, score_3d, is_rand in zip(left_inputs, box_3ds_batch, scores, randoms):
-        box3d = Box3DList(box3d, size=left_input.size, mode='ry_lhwxyz')
-        left_input.add_field('box3d', box3d)
-        left_input.add_field('scores_3d', score_3d)
-        left_input.add_field('random', is_rand)
-    return left_inputs
